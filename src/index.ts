@@ -14,7 +14,22 @@ const client = new Anthropic({
 // ============================================================================
 
 /**
- * Send message to API and stream response
+ * Stream text chunks to terminal output
+ * Handles proper chunk buffering and terminal output without buffering delays
+ *
+ * @param chunk - Text chunk to stream
+ */
+function streamChunkToTerminal(chunk: string): void {
+  process.stdout.write(chunk);
+}
+
+/**
+ * Send message to API with streaming response output
+ * Streams response chunks in real-time to terminal while collecting full response for history
+ *
+ * @param state - Session state to update with message history and token counts
+ * @param userMessage - Message to send to the API
+ * @returns Complete response text collected from all streamed chunks
  */
 async function sendMessage(
   state: SessionState,
@@ -23,8 +38,11 @@ async function sendMessage(
   // Add user message to history
   state.history.push({ role: "user", content: userMessage });
 
-  // Call API
-  const msg = await client.messages.create({
+  // Initialize response buffer
+  let fullResponse = "";
+
+  // Create stream and collect chunks
+  const stream = await client.messages.stream({
     model: state.model,
     max_tokens: 8096,
     temperature: state.temperature,
@@ -32,20 +50,33 @@ async function sendMessage(
     messages: state.history,
   });
 
-  // Extract response text
-  const responseText = msg.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b as { type: "text"; text: string }).text)
-    .join("");
+  // Process stream events
+  for await (const event of stream) {
+    // Handle text content block delta events (actual response chunks)
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      const textChunk = event.delta.text;
+      fullResponse += textChunk;
+      streamChunkToTerminal(textChunk);
+    }
+
+    // Capture token usage from message delta event
+    if (event.type === "message_delta" && event.usage) {
+      state.totalOutputTokens += event.usage.output_tokens;
+    }
+
+    // Capture input tokens from message start event
+    if (event.type === "message_start" && event.message.usage) {
+      state.totalInputTokens += event.message.usage.input_tokens;
+    }
+  }
 
   // Add assistant response to history
-  state.history.push({ role: "assistant", content: responseText });
+  state.history.push({ role: "assistant", content: fullResponse });
 
-  // Update token counts
-  state.totalInputTokens += msg.usage.input_tokens;
-  state.totalOutputTokens += msg.usage.output_tokens;
-
-  return responseText;
+  return fullResponse;
 }
 
 /**
@@ -150,8 +181,9 @@ async function runREPL(state: SessionState, rl: readline.Interface): Promise<voi
     if (trimmed === "/exit") break;
 
     try {
-      const response = await sendMessage(state, trimmed);
-      console.log(`\nAssistant: ${response}\n`);
+      process.stdout.write("\nAssistant: ");
+      await sendMessage(state, trimmed);
+      console.log("\n");
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }

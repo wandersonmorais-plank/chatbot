@@ -17,6 +17,7 @@ Commands:
 ## Architecture
 
 - `src/index.ts` — single file, all logic
+- `src/types.ts` — shared TypeScript types only (no runtime logic)
 - CLI flags via process.argv parsing (no framework)
 - Async readline REPL loop
 

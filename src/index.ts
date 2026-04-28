@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import * as dotenv from "dotenv";
 import Anthropic from "@anthropic-ai/sdk";
-import type { ModelId, SessionState } from "./types";
+import type { ModelId, SessionState, SlashCommand, CommandContext } from "./types";
 
 dotenv.config();
 
@@ -79,16 +79,63 @@ async function sendMessage(
   return fullResponse;
 }
 
+// ============================================================================
+// Command Registry and Handler
+// ============================================================================
+
 /**
- * Handle slash commands
+ * Map of registered slash commands
+ * Key: command name (without slash), Value: command handler
+ */
+const commands = new Map<string, SlashCommand>();
+
+/**
+ * Register slash command handler
+ * @param command - Command definition with name, handler, and description
+ */
+function registerCommand(command: SlashCommand): void {
+  commands.set(command.name, command);
+}
+
+/**
+ * Parse and execute slash command
+ * Input format: /command arg1 arg2 arg3
+ * @param input - Full command line input including the slash
+ * @param state - Session state
+ * @returns true if command was handled and executed, false otherwise
  */
 async function handleCommand(
-  command: string,
+  input: string,
   state: SessionState
 ): Promise<boolean> {
-  // TODO: implement command parsing and dispatch
-  // Return true if command was handled, false otherwise
-  throw new Error("Not implemented");
+  // Check if input is a command (starts with /)
+  if (!input.startsWith("/")) {
+    return false;
+  }
+
+  // Parse command and arguments
+  const parts = input.slice(1).split(/\s+/);
+  const commandName = parts[0];
+  const args = parts.slice(1);
+
+  // Lookup command
+  const command = commands.get(commandName);
+  if (!command) {
+    console.error(`Unknown command: /${commandName}`);
+    return true;
+  }
+
+  // Execute command
+  try {
+    const ctx: CommandContext = { state, args };
+    await command.handler(ctx);
+    return true;
+  } catch (err) {
+    console.error(
+      `Command error: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return true;
+  }
 }
 
 /**
@@ -127,6 +174,124 @@ function displayCost(state: SessionState): void {
   throw new Error("Not implemented");
 }
 
+
+// ============================================================================
+// Slash Command Stubs
+// ============================================================================
+
+/**
+ * /help - Display available commands
+ */
+registerCommand({
+  name: "help",
+  description: "Show available commands",
+  usage: "/help",
+  handler: async (ctx) => {
+    // TODO: implement - show list of registered commands
+    console.log("Available commands:");
+    for (const cmd of commands.values()) {
+      console.log(`  ${cmd.usage || `/${cmd.name}`} - ${cmd.description}`);
+    }
+  },
+});
+
+/**
+ * /model - Switch to different model
+ */
+registerCommand({
+  name: "model",
+  description: "Switch to a different model",
+  usage: "/model <model-id>",
+  handler: async (ctx) => {
+    // TODO: implement - validate and switch model
+    if (ctx.args.length === 0) {
+      console.log(`Current model: ${ctx.state.model}`);
+      return;
+    }
+    console.log(`Model switching not yet implemented`);
+  },
+});
+
+/**
+ * /temperature - Set temperature
+ */
+registerCommand({
+  name: "temperature",
+  description: "Set response temperature (0-1)",
+  usage: "/temperature <value>",
+  handler: async (ctx) => {
+    // TODO: implement - validate and set temperature
+    if (ctx.args.length === 0) {
+      console.log(`Current temperature: ${ctx.state.temperature}`);
+      return;
+    }
+    console.log(`Temperature adjustment not yet implemented`);
+  },
+});
+
+/**
+ * /system - Set system prompt
+ */
+registerCommand({
+  name: "system",
+  description: "Set system prompt",
+  usage: "/system <prompt>",
+  handler: async (ctx) => {
+    // TODO: implement - set new system prompt
+    if (ctx.args.length === 0) {
+      console.log(`Current system prompt:\n${ctx.state.systemPrompt}`);
+      return;
+    }
+    console.log(`System prompt update not yet implemented`);
+  },
+});
+
+/**
+ * /clear - Clear conversation history
+ */
+registerCommand({
+  name: "clear",
+  description: "Clear conversation history",
+  usage: "/clear",
+  handler: async (ctx) => {
+    // TODO: implement - reset history to empty
+    console.log(`Clear history not yet implemented`);
+  },
+});
+
+/**
+ * /cost - Display token usage and estimated cost
+ */
+registerCommand({
+  name: "cost",
+  description: "Show token usage and cost estimation",
+  usage: "/cost",
+  handler: async (ctx) => {
+    // TODO: implement - calculate and display cost
+    const totalTokens = ctx.state.totalInputTokens + ctx.state.totalOutputTokens;
+    console.log(`Total tokens used: ${totalTokens}`);
+    console.log(`Input tokens: ${ctx.state.totalInputTokens}`);
+    console.log(`Output tokens: ${ctx.state.totalOutputTokens}`);
+    console.log(`Cost calculation not yet implemented`);
+  },
+});
+
+/**
+ * /exit - Exit the application
+ */
+registerCommand({
+  name: "exit",
+  description: "Exit the chatbot",
+  usage: "/exit",
+  handler: async (ctx) => {
+    // TODO: implement - graceful shutdown
+    console.log(`Use Ctrl+C or type "/exit" to exit`);
+  },
+});
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
 
 /**
  * Parse CLI arguments
@@ -181,9 +346,15 @@ async function runREPL(state: SessionState, rl: readline.Interface): Promise<voi
     if (trimmed === "/exit") break;
 
     try {
-      process.stdout.write("\nAssistant: ");
-      await sendMessage(state, trimmed);
-      console.log("\n");
+      // Check if input is a command
+      const isCommand = await handleCommand(trimmed, state);
+
+      if (!isCommand) {
+        // Regular message - send to API
+        process.stdout.write("\nAssistant: ");
+        await sendMessage(state, trimmed);
+        console.log("\n");
+      }
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }

@@ -20,8 +20,32 @@ async function sendMessage(
   state: SessionState,
   userMessage: string
 ): Promise<string> {
-  // TODO: implement streaming message sending
-  throw new Error("Not implemented");
+  // Add user message to history
+  state.history.push({ role: "user", content: userMessage });
+
+  // Call API
+  const msg = await client.messages.create({
+    model: state.model,
+    max_tokens: 8096,
+    temperature: state.temperature,
+    system: state.systemPrompt,
+    messages: state.history,
+  });
+
+  // Extract response text
+  const responseText = msg.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("");
+
+  // Add assistant response to history
+  state.history.push({ role: "assistant", content: responseText });
+
+  // Update token counts
+  state.totalInputTokens += msg.usage.input_tokens;
+  state.totalOutputTokens += msg.usage.output_tokens;
+
+  return responseText;
 }
 
 /**
@@ -72,13 +96,6 @@ function displayCost(state: SessionState): void {
   throw new Error("Not implemented");
 }
 
-/**
- * Main REPL loop
- */
-async function runREPL(state: SessionState, rl: readline.Interface): Promise<void> {
-  // TODO: implement main conversation loop
-  throw new Error("Not implemented");
-}
 
 /**
  * Parse CLI arguments
@@ -87,16 +104,58 @@ function parseArgs(): {
   model: ModelId;
   temperature: number;
 } {
-  // TODO: implement argument parsing
-  throw new Error("Not implemented");
+  const args = process.argv.slice(2);
+  let model: ModelId = "claude-sonnet-4-6";
+  let temperature = 0.7;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--model" && i + 1 < args.length) {
+      model = args[i + 1];
+      i++;
+    } else if (args[i] === "--temperature" && i + 1 < args.length) {
+      temperature = Math.max(0, Math.min(1, parseFloat(args[i + 1])));
+      i++;
+    }
+  }
+
+  return { model, temperature };
 }
 
 /**
  * Initialize session state
  */
 function initializeState(model: ModelId, temperature: number): SessionState {
-  // TODO: implement
-  throw new Error("Not implemented");
+  return {
+    model,
+    temperature,
+    systemPrompt: "You are a helpful assistant.",
+    history: [],
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+  };
+}
+
+/**
+ * Main REPL loop
+ */
+async function runREPL(state: SessionState, rl: readline.Interface): Promise<void> {
+  const question = (prompt: string): Promise<string> =>
+    new Promise((resolve) => rl.question(prompt, resolve));
+
+  while (true) {
+    const input = await question("You: ");
+    const trimmed = input.trim();
+
+    if (!trimmed) continue;
+    if (trimmed === "/exit") break;
+
+    try {
+      const response = await sendMessage(state, trimmed);
+      console.log(`\nAssistant: ${response}\n`);
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }
 
 // ============================================================================

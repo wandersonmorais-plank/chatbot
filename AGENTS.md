@@ -16,8 +16,11 @@ Commands:
 
 ## Architecture
 
-- `src/index.ts` — single file, all logic
+- `src/index.ts` — main entry point and core logic
 - `src/types.ts` — shared TypeScript types only (no runtime logic)
+- `src/tools/` — tool registry and definitions
+  - `types.ts` — tool-specific types (Tool, ToolInput, ToolOutput)
+  - `index.ts` — ToolRegistry class implementation
 - CLI flags via process.argv parsing (no framework)
 - Async readline REPL loop
 

@@ -5,10 +5,12 @@
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { webSearchTool } from "./web_search.js";
 import { readUrlTool } from "./read_url.js";
+import { calculatorTool } from "./calculator.js";
 
-export type { Tool, ToolInput, ToolOutput } from "./types.js";
+export type { Tool, ToolInput, ToolOutput, InputSchema } from "./types.js";
 export { webSearchTool } from "./web_search.js";
 export { readUrlTool } from "./read_url.js";
+export { calculatorTool } from "./calculator.js";
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
@@ -48,3 +50,4 @@ export class ToolRegistry {
 export const toolRegistry = new ToolRegistry();
 toolRegistry.register(webSearchTool);
 toolRegistry.register(readUrlTool);
+toolRegistry.register(calculatorTool);

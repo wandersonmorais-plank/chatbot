@@ -12,8 +12,15 @@ export interface ToolOutput {
   error?: string;
 }
 
+export interface InputSchema {
+  type: "object";
+  properties: Record<string, unknown>;
+  required: string[];
+}
+
 export interface Tool {
   name: string;
   description: string;
+  input_schema: InputSchema;
   execute: (input: ToolInput) => Promise<ToolOutput>;
 }

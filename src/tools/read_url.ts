@@ -7,6 +7,16 @@ import type { Tool, ToolInput, ToolOutput } from "./types.js";
 export const readUrlTool: Tool = {
   name: "read_url",
   description: "Fetch a URL and return the page content as text",
+  input_schema: {
+    type: "object",
+    properties: {
+      url: {
+        type: "string",
+        description: "URL to fetch content from",
+      },
+    },
+    required: ["url"],
+  },
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const url = input.url as string;

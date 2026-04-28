@@ -18,6 +18,16 @@ interface TavilyResponse {
 export const webSearchTool: Tool = {
   name: "web_search",
   description: "Search the web using Tavily API and return relevant results",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "Search query to find on the web",
+      },
+    },
+    required: ["query"],
+  },
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const query = input.query as string;

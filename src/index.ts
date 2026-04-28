@@ -41,6 +41,16 @@ async function sendMessage(
   // Initialize response buffer
   let fullResponse = "";
 
+
+  // Validate model ID exists in pricing (ensures full valid model name)
+  if (!modelPricing[state.model]) {
+    console.error(
+      `Invalid model: ${state.model}. Available: ${Object.keys(modelPricing).join(", ")}`
+    );
+    throw new Error(`Invalid model ID: ${state.model}`);
+  }
+
+  console.log(`Sending message to model: ${state.model}`);
   // Create stream and collect chunks
   const stream = await client.messages.stream({
     model: state.model,
@@ -75,7 +85,6 @@ async function sendMessage(
 
   // Add assistant response to history
   state.history.push({ role: "assistant", content: fullResponse });
-
   return fullResponse;
 }
 
@@ -139,39 +148,36 @@ async function handleCommand(
 }
 
 /**
- * Update system prompt
+ * Pricing per 1M tokens for different models (USD)
  */
-function setSystemPrompt(state: SessionState, prompt: string): void {
-  // TODO: implement
-  throw new Error("Not implemented");
-}
+const modelPricing: Record<string, { input: number; output: number }> = {
+  "claude-opus-4-6": { input: 15.0, output: 75.0 },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
+};
 
 /**
- * Switch model
+ * Calculate cost from token counts for given model
+ * @param model - Model ID
+ * @param inputTokens - Number of input tokens
+ * @param outputTokens - Number of output tokens
+ * @returns Cost breakdown in USD
  */
-function switchModel(state: SessionState, newModel: ModelId): void {
-  // TODO: implement
-  throw new Error("Not implemented");
-}
+function calculateCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): { inputCost: number; outputCost: number; total: number } {
+  const pricing = modelPricing[model] || { input: 0, output: 0 };
 
-/**
- * Get cost estimation from token counts
- */
-function calculateCost(state: SessionState): {
-  inputCost: number;
-  outputCost: number;
-  total: number;
-} {
-  // TODO: implement cost calculation
-  throw new Error("Not implemented");
-}
+  const inputCost = (inputTokens / 1_000_000) * pricing.input;
+  const outputCost = (outputTokens / 1_000_000) * pricing.output;
 
-/**
- * Display usage and cost information
- */
-function displayCost(state: SessionState): void {
-  // TODO: implement
-  throw new Error("Not implemented");
+  return {
+    inputCost,
+    outputCost,
+    total: inputCost + outputCost,
+  };
 }
 
 
@@ -179,130 +185,202 @@ function displayCost(state: SessionState): void {
 // Slash Command Stubs
 // ============================================================================
 
-/**
- * /help - Display available commands
+// --- Slash commands migrated to commands.ts as object literals ---
+
+/*
+ * To use object literal commands, import the commands like:
+ * import { slashCommands } from './commands';
+ * Then register all with:
+ *   Object.values(slashCommands).forEach(registerCommand)
  */
-registerCommand({
-  name: "help",
-  description: "Show available commands",
-  usage: "/help",
-  handler: async (ctx) => {
-    // TODO: implement - show list of registered commands
-    console.log("Available commands:");
-    for (const cmd of commands.values()) {
-      console.log(`  ${cmd.usage || `/${cmd.name}`} - ${cmd.description}`);
-    }
-  },
-});
 
 /**
- * /model - Switch to different model
+ * SlashCommand type definition for slash commands
  */
-registerCommand({
-  name: "model",
-  description: "Switch to a different model",
-  usage: "/model <model-id>",
-  handler: async (ctx) => {
-    // TODO: implement - validate and switch model
-    if (ctx.args.length === 0) {
-      console.log(`Current model: ${ctx.state.model}`);
-      return;
-    }
-    console.log(`Model switching not yet implemented`);
-  },
-});
 
-/**
- * /temperature - Set temperature
- */
-registerCommand({
-  name: "temperature",
-  description: "Set response temperature (0-1)",
-  usage: "/temperature <value>",
-  handler: async (ctx) => {
-    // TODO: implement - validate and set temperature
-    if (ctx.args.length === 0) {
-      console.log(`Current temperature: ${ctx.state.temperature}`);
-      return;
-    }
-    console.log(`Temperature adjustment not yet implemented`);
-  },
-});
 
-/**
- * /system - Set system prompt
- */
-registerCommand({
-  name: "system",
-  description: "Set system prompt",
-  usage: "/system <prompt>",
-  handler: async (ctx) => {
-    // TODO: implement - set new system prompt
-    if (ctx.args.length === 0) {
-      console.log(`Current system prompt:\n${ctx.state.systemPrompt}`);
-      return;
-    }
-    console.log(`System prompt update not yet implemented`);
-  },
-});
+// Provide modelPricing and calculateCost as required for cost/model commands
+// import { modelPricing, calculateCost } from "./costUtils"; // adjust as necessary
 
-/**
- * /clear - Clear conversation history
- */
-registerCommand({
-  name: "clear",
-  description: "Clear conversation history",
-  usage: "/clear",
-  handler: async (ctx) => {
-    // TODO: implement - reset history to empty
-    console.log(`Clear history not yet implemented`);
+// All slash commands as a single object literal
+export const slashCommands: Record<string, SlashCommand> = {
+  help: {
+    name: "help",
+    description: "Show available commands",
+    usage: "/help",
+    handler: async (ctx) => {
+      console.log("\n=== Available Commands ===");
+      for (const cmd of Object.values(slashCommands)) {
+        console.log(`${cmd.usage || `/${cmd.name}`} - ${cmd.description}`);
+      }
+      console.log("");
+    },
   },
-});
+  model: {
+    name: "model",
+    description: "Switch to a different model",
+    usage: "/model <index|model-id>",
+    handler: async (ctx) => {
+      const models = Object.keys(modelPricing);
+      if (ctx.args.length === 0) {
+        console.log(`Current model: ${ctx.state.model}`);
+        console.log("Available models:");
+        models.forEach((model, idx) => {
+          console.log(`  [${idx}] ${model}`);
+        });
+        return;
+      }
 
-/**
- * /cost - Display token usage and estimated cost
- */
-registerCommand({
-  name: "cost",
-  description: "Show token usage and cost estimation",
-  usage: "/cost",
-  handler: async (ctx) => {
-    // TODO: implement - calculate and display cost
-    const totalTokens = ctx.state.totalInputTokens + ctx.state.totalOutputTokens;
-    console.log(`Total tokens used: ${totalTokens}`);
-    console.log(`Input tokens: ${ctx.state.totalInputTokens}`);
-    console.log(`Output tokens: ${ctx.state.totalOutputTokens}`);
-    console.log(`Cost calculation not yet implemented`);
-  },
-});
+      // Try parsing as index first
+      const idx = parseInt(ctx.args[0], 10);
+      let newModel: string | null = null;
 
-/**
- * /exit - Exit the application
- */
-registerCommand({
-  name: "exit",
-  description: "Exit the chatbot",
-  usage: "/exit",
-  handler: async (ctx) => {
-    // TODO: implement - graceful shutdown
-    console.log(`Use Ctrl+C or type "/exit" to exit`);
+      if (!isNaN(idx) && idx >= 0 && idx < models.length) {
+        newModel = models[idx];
+      } else if (models.includes(ctx.args[0])) {
+        // Full model ID match
+        newModel = ctx.args[0];
+      }
+
+      if (newModel) {
+        ctx.state.model = newModel;
+        saveSetting("CHATBOT_MODEL", newModel);
+        console.log(`Switched to model: ${newModel}`);
+      } else {
+        console.error(
+          `Invalid model. Use index [0-${models.length - 1}] or full model ID.`
+        );
+        console.log("Available models:");
+        models.forEach((model, idx) => {
+          console.log(`  [${idx}] ${model}`);
+        });
+      }
+    },
   },
-});
+  temperature: {
+    name: "temperature",
+    description: "Set response temperature (0-1)",
+    usage: "/temperature <value>",
+    handler: async (ctx) => {
+      if (ctx.args.length === 0) {
+        console.log(`Current temperature: ${ctx.state.temperature}`);
+        return;
+      }
+
+      const value = parseFloat(ctx.args[0]);
+      if (isNaN(value) || value < 0 || value > 1) {
+        console.error("Temperature must be a number between 0 and 1");
+        return;
+      }
+
+      ctx.state.temperature = value;
+      saveSetting("CHATBOT_TEMPERATURE", value.toString());
+      console.log(`Temperature set to: ${value}`);
+    },
+  },
+  system: {
+    name: "system",
+    description: "Set system prompt",
+    usage: "/system <prompt>",
+    handler: async (ctx) => {
+      if (ctx.args.length === 0) {
+        console.log(`Current system prompt:\n${ctx.state.systemPrompt}`);
+        return;
+      }
+      const newPrompt = ctx.args.join(" ");
+      ctx.state.systemPrompt = newPrompt;
+      console.log(`System prompt updated`);
+    },
+  },
+  clear: {
+    name: "clear",
+    description: "Clear conversation history",
+    usage: "/clear",
+    handler: async (ctx) => {
+      ctx.state.history = [];
+      console.log("Conversation history cleared");
+    },
+  },
+  cost: {
+    name: "cost",
+    description: "Show token usage and cost estimation",
+    usage: "/cost",
+    handler: async (ctx) => {
+      const totalTokens = ctx.state.totalInputTokens + ctx.state.totalOutputTokens;
+      const cost = calculateCost(
+        ctx.state.model,
+        ctx.state.totalInputTokens,
+        ctx.state.totalOutputTokens
+      );
+
+      console.log("\n=== Token Usage & Cost ===");
+      console.log(`Model: ${ctx.state.model}`);
+      console.log(`Input tokens: ${ctx.state.totalInputTokens}`);
+      console.log(`Output tokens: ${ctx.state.totalOutputTokens}`);
+      console.log(`Total tokens: ${totalTokens}`);
+      console.log("\n=== Cost Breakdown ===");
+      console.log(`Input cost: $${cost.inputCost.toFixed(6)}`);
+      console.log(`Output cost: $${cost.outputCost.toFixed(6)}`);
+      console.log(`Total cost: $${cost.total.toFixed(6)}\n`);
+    },
+  },
+  exit: {
+    name: "exit",
+    description: "Exit the chatbot",
+    usage: "/exit",
+    handler: async (ctx) => {
+      console.log("Goodbye!");
+      process.exit(0);
+    },
+  },
+};
+
+// Registration pattern for main index.ts
+Object.values(slashCommands).forEach(registerCommand);
 
 // ============================================================================
 // Utility Functions
 // ============================================================================
 
 /**
- * Parse CLI arguments
+ * Load saved settings from environment variables
+ * Checks for CHATBOT_MODEL and CHATBOT_TEMPERATURE env vars
+ * @returns Saved settings or defaults if not found
+ */
+function loadSavedSettings(): {
+  model: ModelId;
+  temperature: number;
+} {
+  const savedModel = process.env.CHATBOT_MODEL;
+  const savedTemp = process.env.CHATBOT_TEMPERATURE;
+
+  return {
+    model: (savedModel as ModelId) || "claude-sonnet-4-6",
+    temperature: savedTemp ? parseFloat(savedTemp) : 0.7,
+  };
+}
+
+/**
+ * Save settings to environment (for current session persistence)
+ * Use this when model or temperature changes via commands
+ */
+function saveSetting(key: "CHATBOT_MODEL" | "CHATBOT_TEMPERATURE", value: string): void {
+  process.env[key] = value;
+}
+
+/**
+ * Parse CLI arguments with fallback to saved settings
+ * Order of precedence: CLI args > saved settings > hardcoded defaults
  */
 function parseArgs(): {
   model: ModelId;
   temperature: number;
 } {
   const args = process.argv.slice(2);
-  let model: ModelId = "claude-sonnet-4-6";
-  let temperature = 0.7;
+  const saved = loadSavedSettings();
+
+  let model: ModelId = saved.model;
+  let temperature = saved.temperature;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--model" && i + 1 < args.length) {
@@ -343,7 +421,6 @@ async function runREPL(state: SessionState, rl: readline.Interface): Promise<voi
     const trimmed = input.trim();
 
     if (!trimmed) continue;
-    if (trimmed === "/exit") break;
 
     try {
       // Check if input is a command

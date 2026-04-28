@@ -11,3 +11,28 @@ export interface SessionState {
   totalOutputTokens: number;
 }
 
+/**
+ * Command execution context - contains state and parsed input
+ */
+export interface CommandContext {
+  state: SessionState;
+  args: string[];
+}
+
+/**
+ * Command handler function signature
+ * Returns true if command succeeded, false if failed
+ * Should throw Error for invalid usage
+ */
+export type CommandHandler = (ctx: CommandContext) => Promise<void> | void;
+
+/**
+ * Registered slash command definition
+ */
+export interface SlashCommand {
+  name: string;
+  handler: CommandHandler;
+  description: string;
+  usage?: string; // Help text for command usage
+}
+

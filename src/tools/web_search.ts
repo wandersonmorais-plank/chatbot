@@ -17,7 +17,7 @@ interface TavilyResponse {
 
 export const webSearchTool: Tool = {
   name: "web_search",
-  description: "Search the web using Tavily API and return relevant results",
+  description: "Search the web using Tavily API and return relevant results, use this when you want to get the most updated news.",
   input_schema: {
     type: "object",
     properties: {

@@ -27,9 +27,14 @@ Commands:
 ## Dependencies
 
 - `@anthropic-ai/sdk` — Anthropic API, streaming, typed errors
-- `dotenv` — load ANTHROPIC_API_KEY from .env
+- `dotenv` — load environment variables from .env
 
 Keep this minimal. No express, no frameworks, no unnecessary libs.
+
+## Environment Variables
+
+- `ANTHROPIC_API_KEY` — Claude API key
+- `TAVILY_API_KEY` — Tavily web search API key (required for web_search tool)
 
 ## Adding Features
 

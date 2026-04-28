@@ -16,6 +16,7 @@ export interface InputSchema {
   type: "object";
   properties: Record<string, unknown>;
   required: string[];
+  [key: string]: unknown;
 }
 
 export interface Tool {

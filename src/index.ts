@@ -2,6 +2,7 @@ import * as readline from "readline";
 import * as dotenv from "dotenv";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ModelId, SessionState, SlashCommand, CommandContext } from "./types";
+import { toolRegistry } from "./tools/index";
 
 dotenv.config();
 
@@ -24,8 +25,8 @@ function streamChunkToTerminal(chunk: string): void {
 }
 
 /**
- * Send message to API with streaming response output
- * Streams response chunks in real-time to terminal while collecting full response for history
+ * Send message to API with streaming response and tool use handling
+ * Streams response chunks in real-time and executes tools if requested
  *
  * @param state - Session state to update with message history and token counts
  * @param userMessage - Message to send to the API
@@ -38,10 +39,6 @@ async function sendMessage(
   // Add user message to history
   state.history.push({ role: "user", content: userMessage });
 
-  // Initialize response buffer
-  let fullResponse = "";
-
-
   // Validate model ID exists in pricing (ensures full valid model name)
   if (!modelPricing[state.model]) {
     console.error(
@@ -50,42 +47,107 @@ async function sendMessage(
     throw new Error(`Invalid model ID: ${state.model}`);
   }
 
-  console.log(`Sending message to model: ${state.model}`);
-  // Create stream and collect chunks
-  const stream = await client.messages.stream({
-    model: state.model,
-    max_tokens: 8096,
-    temperature: state.temperature,
-    system: state.systemPrompt,
-    messages: state.history,
-  });
+  let lastTextContent = "";
+  let continueLoop = true;
 
-  // Process stream events
-  for await (const event of stream) {
-    // Handle text content block delta events (actual response chunks)
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      const textChunk = event.delta.text;
-      fullResponse += textChunk;
-      streamChunkToTerminal(textChunk);
+  while (continueLoop) {
+    continueLoop = false;
+
+    // Create stream and collect chunks
+    const stream = await client.messages.stream({
+      model: state.model,
+      max_tokens: 8096,
+      temperature: state.temperature,
+      system: state.systemPrompt,
+      messages: state.history,
+      tools: toolRegistry.list(),
+    });
+
+    // Process stream events and collect text for display
+    for await (const event of stream) {
+      // Handle text content block delta events (actual response chunks)
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        const textChunk = event.delta.text;
+        streamChunkToTerminal(textChunk);
+      }
+
+      // Capture token usage from message delta event
+      if (event.type === "message_delta" && event.usage) {
+        state.totalOutputTokens += event.usage.output_tokens;
+      }
+
+      // Capture input tokens from message start event
+      if (event.type === "message_start" && event.message.usage) {
+        state.totalInputTokens += event.message.usage.input_tokens;
+      }
     }
 
-    // Capture token usage from message delta event
-    if (event.type === "message_delta" && event.usage) {
-      state.totalOutputTokens += event.usage.output_tokens;
-    }
+    // Get final message with all content blocks
+    const finalMessage = await stream.finalMessage();
+    const responseContent = finalMessage.content;
 
-    // Capture input tokens from message start event
-    if (event.type === "message_start" && event.message.usage) {
-      state.totalInputTokens += event.message.usage.input_tokens;
+    // Add assistant response to history
+    state.history.push({ role: "assistant", content: responseContent });
+
+    // Filter for tool use blocks
+    const toolUseBlocks = responseContent.filter(
+      (block: Anthropic.ContentBlock): block is Anthropic.ToolUseBlock =>
+        block.type === "tool_use"
+    );
+
+    // Execute tools if any were requested
+    if (toolUseBlocks.length > 0) {
+      if (state.debug) {
+        console.log(`\n[DEBUG] Agent requested ${toolUseBlocks.length} tool(s)\n`);
+      }
+
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const toolUse of toolUseBlocks) {
+        if (state.debug) {
+          console.log(`[DEBUG] Tool: ${toolUse.name}`);
+          console.log(`[DEBUG] Input: ${JSON.stringify(toolUse.input)}`);
+        }
+
+        const result = await toolRegistry.execute(
+          toolUse.name,
+          toolUse.input as Record<string, unknown>
+        );
+
+        if (state.debug) {
+          console.log(`[DEBUG] Result: ${JSON.stringify(result)}\n`);
+        }
+
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result),
+        });
+      }
+
+      // Add tool results to history and continue loop
+      state.history.push({
+        role: "user",
+        content: toolResults,
+      });
+
+      continueLoop = true;
+    } else {
+      // Extract text content for return value
+      lastTextContent = responseContent
+        .filter(
+          (block: Anthropic.ContentBlock): block is Anthropic.TextBlock =>
+            block.type === "text"
+        )
+        .map((block: Anthropic.TextBlock) => block.text)
+        .join("");
     }
   }
 
-  // Add assistant response to history
-  state.history.push({ role: "assistant", content: fullResponse });
-  return fullResponse;
+  return lastTextContent;
 }
 
 // ============================================================================
@@ -333,6 +395,28 @@ export const slashCommands: Record<string, SlashCommand> = {
       process.exit(0);
     },
   },
+  debug: {
+    name: "debug",
+    description: "Toggle debug mode to see tool execution details",
+    usage: "/debug [on|off]",
+    handler: async (ctx) => {
+      if (ctx.args.length === 0) {
+        console.log(`Debug mode: ${ctx.state.debug ? "ON" : "OFF"}`);
+        return;
+      }
+
+      const arg = ctx.args[0].toLowerCase();
+      if (arg === "on") {
+        ctx.state.debug = true;
+        console.log("Debug mode: ON");
+      } else if (arg === "off") {
+        ctx.state.debug = false;
+        console.log("Debug mode: OFF");
+      } else {
+        console.error(`Invalid argument. Use: /debug [on|off]`);
+      }
+    },
+  },
 };
 
 // Registration pattern for main index.ts
@@ -406,6 +490,7 @@ function initializeState(model: ModelId, temperature: number): SessionState {
     history: [],
     totalInputTokens: 0,
     totalOutputTokens: 0,
+    debug: false,
   };
 }
 

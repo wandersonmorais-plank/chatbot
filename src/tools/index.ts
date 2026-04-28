@@ -2,17 +2,17 @@
  * Tool registry for managing and executing tools
  */
 
-import type { Tool, ToolInput, ToolOutput } from "./types.js";
-import { webSearchTool } from "./web_search.js";
-import { readUrlTool } from "./read_url.js";
-import { calculatorTool } from "./calculator.js";
-import { saveNoteTool } from "./save_note.js";
+import type { Tool, ToolInput, ToolOutput } from "./types";
+import { webSearchTool } from "./web_search";
+import { readUrlTool } from "./read_url";
+import { calculatorTool } from "./calculator";
+import { saveNoteTool } from "./save_note";
 
-export type { Tool, ToolInput, ToolOutput, InputSchema } from "./types.js";
-export { webSearchTool } from "./web_search.js";
-export { readUrlTool } from "./read_url.js";
-export { calculatorTool } from "./calculator.js";
-export { saveNoteTool } from "./save_note.js";
+export type { Tool, ToolInput, ToolOutput, InputSchema } from "./types";
+export { webSearchTool } from "./web_search";
+export { readUrlTool } from "./read_url";
+export { calculatorTool } from "./calculator";
+export { saveNoteTool } from "./save_note";
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();

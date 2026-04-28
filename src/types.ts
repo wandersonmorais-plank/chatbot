@@ -9,6 +9,7 @@ export interface SessionState {
   history: MessageParam[];
   totalInputTokens: number;
   totalOutputTokens: number;
+  debug: boolean;
 }
 
 /**

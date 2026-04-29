@@ -2,7 +2,7 @@
  * Calculator tool to evaluate mathematical expressions
  */
 
-import type { Tool, ToolInput, ToolOutput } from "./types.js";
+import type { Tool, ToolInput, ToolOutput } from "./types";
 
 export const calculatorTool: Tool = {
   name: "calculator",

@@ -3,6 +3,8 @@ import * as dotenv from "dotenv";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ModelId, SessionState, SlashCommand, CommandContext } from "./types";
 import { toolRegistry } from "./tools/index";
+import { researchCommand } from "./commands/research";
+import { researchV2Command } from "./commands/research-v2";
 
 dotenv.config();
 
@@ -417,6 +419,8 @@ export const slashCommands: Record<string, SlashCommand> = {
       }
     },
   },
+  research: researchCommand,
+  "research-v2": researchV2Command,
 };
 
 // Registration pattern for main index.ts

@@ -1,12 +1,12 @@
 /**
- * Read URL tool to fetch and extract page content
+ * Read URL tool to fetch and extract page content using Tavily API
  */
 
-import type { Tool, ToolInput, ToolOutput } from "./types.js";
+import type { Tool, ToolInput, ToolOutput } from "./types";
 
 export const readUrlTool: Tool = {
   name: "read_url",
-  description: "Fetch a URL and return the page content as text",
+  description: "Fetch a URL and return the page content as text using Tavily API",
   input_schema: {
     type: "object",
     properties: {
@@ -20,6 +20,7 @@ export const readUrlTool: Tool = {
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const url = input.url as string;
+    const apiKey = process.env.TAVILY_API_KEY;
 
     if (!url) {
       return {
@@ -28,46 +29,52 @@ export const readUrlTool: Tool = {
       };
     }
 
+    if (!apiKey) {
+      return {
+        success: false,
+        error: "TAVILY_API_KEY environment variable not set",
+      };
+    }
+
     try {
-      const urlObj = new URL(url);
-      const response = await fetch(url, {
+      const response = await fetch("https://api.tavily.com/extract", {
+        method: "POST",
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; ChatBot/1.0; +http://example.com/bot)",
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          api_key: apiKey,
+          urls: [url],
+        }),
       });
 
       if (!response.ok) {
         return {
           success: false,
-          error: `HTTP ${response.status}: ${response.statusText}`,
+          error: `Tavily API error: ${response.status} ${response.statusText}`,
         };
       }
 
-      const contentType = response.headers.get("content-type") || "";
+      const data = (await response.json()) as {
+        results: Array<{ url: string; raw_content: string }>;
+      };
 
-      if (!contentType.includes("text/html") && !contentType.includes("text/plain") && !contentType.includes("application/json")) {
+      if (!data.results || data.results.length === 0) {
         return {
           success: false,
-          error: `Unsupported content type: ${contentType}`,
+          error: "No content extracted from URL",
         };
       }
 
-      const html = await response.text();
-
-      const text = html
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+      const result = data.results[0];
+      const content = result.raw_content || "";
 
       return {
         success: true,
         data: {
-          url: urlObj.href,
-          content: text,
-          length: text.length,
+          url: result.url,
+          content,
+          length: content.length,
         },
       };
     } catch (err) {

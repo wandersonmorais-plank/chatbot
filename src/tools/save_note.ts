@@ -4,7 +4,7 @@
 
 import { promises as fs } from "fs";
 import { resolve } from "path";
-import type { Tool, ToolInput, ToolOutput } from "./types.js";
+import type { Tool, ToolInput, ToolOutput } from "./types";
 
 const NOTES_FILE = resolve(process.cwd(), "notes.json");
 

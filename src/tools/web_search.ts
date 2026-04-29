@@ -2,7 +2,7 @@
  * Web search tool using Tavily API
  */
 
-import type { Tool, ToolInput, ToolOutput } from "./types.js";
+import type { Tool, ToolInput, ToolOutput } from "./types";
 
 interface TavilySearchResult {
   title: string;

@@ -21,8 +21,27 @@ Commands:
 - `src/tools/` — tool registry and definitions
   - `types.ts` — tool-specific types (Tool, ToolInput, ToolOutput)
   - `index.ts` — ToolRegistry class implementation
+- `src/commands/` — slash command definitions
+- `src/agents/` — subagent implementations
 - CLI flags via process.argv parsing (no framework)
 - Async readline REPL loop
+
+## TypeScript Import Conventions
+
+**Do NOT include `.js` extension in imports.** TypeScript module resolution handles conversion:
+
+```typescript
+// ✓ Correct
+import { researchCommand } from "./commands/research";
+import { toolRegistry } from "./tools/index";
+import type { SlashCommand } from "./types";
+
+// ✗ Wrong (don't do this)
+import { researchCommand } from "./commands/research.js";
+import { toolRegistry } from "./tools/index.js";
+```
+
+TypeScript's module resolution automatically finds `.ts` files without needing `.js` extensions.
 
 ## Dependencies
 
